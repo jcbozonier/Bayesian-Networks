@@ -64,7 +64,8 @@ class JointProbabilityTable:
 		return str([self._columns, self._data])
 
 class BayesianNode:
-	def __init__(self, joint_probability_table):
+	def __init__(self, name, joint_probability_table):
+		self._name = name
 		self._original_joint_probability_table = joint_probability_table
 		self._joint_probability_table = joint_probability_table
 		self._affects_nodes = []
@@ -74,6 +75,19 @@ class BayesianNode:
 	def affects(self, node):
 		self._affects_nodes.append(node)
 		node.affected_by(self)
+	def _propagation(self, event_name, event_value):
+		if not self._propagation_started:
+			self._propagation_started = True
+			self._joint_probability_table = self._joint_probability_table.given(event_name, event_value)
+			for affected_node in self._affects_nodes:
+				affected_node._propagate(event_name, event_value)
+	def given(self, value):
+		self._propagation_started = True
+		self._joint_probability_table = self._joint_probability_table.given(self._name, value)
+		for affected_node in self._affects_nodes:
+			affected_node._propagate(self._name, value)
+	def probability(self, event_value):
+		return self._joint_probability_table.probability(self._name)[event_value]
 
 diner_order_probability = JointProbabilityTable(
 	columns=['order', 'diner loyalty'],
@@ -96,6 +110,13 @@ channel_order_probability = JointProbabilityTable(
 		['facebook', 'new',     .65],
 	])
 
+diner_loyalty_probability = JointProbabilityTable(
+	columns=['diner loyalty'],
+	data = [
+		['return', .485],
+	 	['new', .515]
+	 ])
+
 print diner_order_probability.given('order', False)
 adjusted_table = diner_order_probability.update_belief('diner loyalty', {'return': .3, 'new': .7})
 print adjusted_table.update_belief('diner loyalty', {'return': .5, 'new': .5})
@@ -110,6 +131,22 @@ print "Given that an order was placed their channel probabilities are:"
 print updated_channel_order_probability.probability('channel')
 print "Given that the diner was new their channel probabilities are:"
 print updated_channel_order_probability.given('diner loyalty', 'new')
+
+
+order_node = BayesianNode('order', diner_order_probability)
+channel_node = BayesianNode('channel', channel_order_probability)
+loyalty_node = BayesianNode('diner loyalty', diner_loyalty_probability)
+
+loyalty_node.affects(channel_node)
+loyalty_node.affects(order_node)
+channel_node.affects(order_node)
+
+print 'Given that the diner ordered'
+order_node.given(True)
+print 'The probability they came from a direct channel is: ' + str(channel_node.probability('direct'))
+print 'It should be 0.5483870967741936'
+
+
 #channel_order_probability
 
 #print "P(order) = " + str(diner_order_probability.probability('order'))

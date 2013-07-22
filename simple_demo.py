@@ -60,6 +60,14 @@ class JointProbabilityTable:
 				beliefs[event_value] = 0
 			beliefs[event_value] += row[-1]
 		return beliefs
+	def update_applicable_beliefs(self, joint_probability_table):
+		for event_name in joint_probability_table._columns:
+			if event_name in self._columns:
+				print "updating belief in " + event_name
+				event_beliefs = joint_probability_table.probability(event_name)
+				self._data = self.update_belief(event_name, event_beliefs)._data
+	def clone(self):
+		return JointProbabilityTable(self._columns, self._clone_data())
 	def __str__(self):
 		return str([self._columns, self._data])
 
@@ -75,17 +83,29 @@ class BayesianNode:
 	def affects(self, node):
 		self._affects_nodes.append(node)
 		node.affected_by(self)
-	def _propagation(self, event_name, event_value):
-		if not self._propagation_started:
-			self._propagation_started = True
-			self._joint_probability_table = self._joint_probability_table.given(event_name, event_value)
-			for affected_node in self._affects_nodes:
-				affected_node._propagate(event_name, event_value)
+	def _forward_propagate(self, joint_probability_table):
+		print "Forward propagating beliefs on " + str(self._name)
+		print "Beliefs before: " + str(self._joint_probability_table)
+		self._joint_probability_table.update_applicable_beliefs(joint_probability_table)
+		print "Beliefs after: " + str(self._joint_probability_table)
+		for affected_node in self._affects_nodes:
+			affected_node._forward_propagate(self._joint_probability_table)
+	def _backward_propagate(self, joint_probability_table):
+		print "Backward propagating beliefs on " + str(self._name)
+		print "With table: " +str(joint_probability_table)
+		print "Beliefs before: " + str(self._joint_probability_table)
+		self._joint_probability_table.update_applicable_beliefs(joint_probability_table)
+		print "Beliefs after: " + str(self._joint_probability_table)
+		for affected_node in self._affected_by:
+			affected_node._backward_propagate(self._joint_probability_table)
 	def given(self, value):
 		self._propagation_started = True
 		self._joint_probability_table = self._joint_probability_table.given(self._name, value)
+		jpt = self._joint_probability_table.clone()
 		for affected_node in self._affects_nodes:
-			affected_node._propagate(self._name, value)
+			affected_node._forward_propagate(jpt)
+		for affected_node in self._affected_by:
+			affected_node._backward_propagate(jpt)
 	def probability(self, event_value):
 		return self._joint_probability_table.probability(self._name)[event_value]
 
@@ -120,6 +140,10 @@ diner_loyalty_probability = JointProbabilityTable(
 print diner_order_probability.given('order', False)
 adjusted_table = diner_order_probability.update_belief('diner loyalty', {'return': .3, 'new': .7})
 print adjusted_table.update_belief('diner loyalty', {'return': .5, 'new': .5})
+
+print "~~~~~~~~~~~ test smallest table"
+print diner_loyalty_probability.update_belief('diner loyalty', {'return': .7, 'new': .3})
+
 
 print "~~~~ Example Scenario ~~~~~~"
 loyalty_probability_given_ordered = diner_order_probability.given('order', True)

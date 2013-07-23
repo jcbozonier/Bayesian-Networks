@@ -2,7 +2,7 @@ class JointProbabilityTable:
 	def __init__(self, columns, data):
 		self._columns = columns
 		self._probability_index = len(columns)
-		self._data = self._normalize(data)
+		self._data = data#self._normalize(data)
 	def _normalize(self, data):
 		probability_sum = 0
 		for row in data:
@@ -27,7 +27,6 @@ class JointProbabilityTable:
 		for row in contextual_data:
 			row[-1] = row[-1]/probability_sum
 		return JointProbabilityTable(contextual_columns, contextual_data)
-
 	def _add_to_current_beliefs(self, current_beliefs, event_value, probability):
 		if not event_value in current_beliefs:
 			current_beliefs[event_value] = 0
@@ -87,17 +86,12 @@ class BayesianNode:
 		node.affected_by(self)
 	def _forward_propagate(self, joint_probability_table):
 		print "Forward propagating beliefs on " + str(self._name)
-		print "Beliefs before: " + str(self._joint_probability_table)
 		self._joint_probability_table.update_applicable_beliefs(joint_probability_table)
-		print "Beliefs after: " + str(self._joint_probability_table)
 		for affected_node in self._affects_nodes:
 			affected_node._forward_propagate(self._joint_probability_table)
 	def _backward_propagate(self, joint_probability_table):
 		print "Backward propagating beliefs on " + str(self._name)
-		print "With table: " +str(joint_probability_table)
-		print "Beliefs before: " + str(self._joint_probability_table)
 		self._joint_probability_table.update_applicable_beliefs(joint_probability_table)
-		print "Beliefs after: " + str(self._joint_probability_table)
 		for affected_node in self._affected_by:
 			affected_node._backward_propagate(self._joint_probability_table)
 	def given(self, value):
@@ -112,31 +106,26 @@ class BayesianNode:
 	def __str__(self):
 		return str(self._joint_probability_table)
 
-cloudy_table = JointProbabilityTable(
-	columns=['cloudy'],
+rain_table = JointProbabilityTable(
+	columns=['rain'],
 	data = [
-		[True,  .5],
-	 	[False, .5]
+		[True,  .2],
+	 	[False, .8]
 	 ])
 
 sprinkler_table = JointProbabilityTable(
-	columns=['sprinkler', 'cloudy'],
+	columns=['sprinkler', 'rain'],
 	data = [
-		[True,  True,  .1],
-		[True,  False, .5],
-		[False, True,  .9],
-		[False, False, .5],
+		[True,  True,  .01],
+		[True,  False, .4],
+		[False, True,  .99],
+		[False, False, .6],
 
 	])
 
-rain_table = JointProbabilityTable(
-	columns=['rain', 'cloudy'],
-	data = [
-		[True,     True,      .8],
-		[True,     False,     .2],
-		[False,    True,      .2],
-		[False,    False,     .8]
-	])
+p_sprinkler = sprinkler_table.given('sprinkler', False).probability('rain')
+print "Updated sprinkler table"
+print p_sprinkler
 
 wet_grass_table = JointProbabilityTable(
 	columns=['sprinkler', 'rain', 'wet grass'],
@@ -145,32 +134,33 @@ wet_grass_table = JointProbabilityTable(
 		[True, True,     False,     .01],
 		[True, False,    True,      .90],
 		[True, False,    False,     .10],
-		[False, True,     True,     .9],
-		[False, True,     False,    .1],
+		[False, True,     True,     .8],
+		[False, True,     False,    .2],
 		[False, False,    True,      0],
 		[False, False,    False,     1]
 	])
 
-print "Test given for wet grass event: " + str(wet_grass_table.given('wet grass', True))
+print "Testing sprinkler belief updates..."
+p_rain = wet_grass_table.given('wet grass', True).probability('rain')
+print "Updated rain table: " + str(rain_table.update_belief('rain', p_rain).probability('rain'))
 
 wet_grass_node = BayesianNode('wet grass', wet_grass_table)
-cloudy_node = BayesianNode('cloudy', cloudy_table)
 rain_node = BayesianNode('rain', rain_table)
 sprinkler_node = BayesianNode('sprinkler', sprinkler_table)
 
-cloudy_node.affects(sprinkler_node)
-cloudy_node.affects(rain_node)
 sprinkler_node.affects(wet_grass_node)
 rain_node.affects(wet_grass_node)
+rain_node.affects(sprinkler_node)
 
 wet_grass_node.given(True)
 print 'Sprinkler node: ' + str(sprinkler_node)
+print 'Rain node: ' + str(rain_node)
 print 'P(S = True | W = True) = ' + str(sprinkler_node.probability(True))
-print 'P(S = False | W = True) = ' + str(sprinkler_node.probability(False))
 print 'P(R = True | W = True) = ' + str(rain_node.probability(True))
-print 'P(C = True | W = True) = ' + str(cloudy_node.probability(True))
 
 
+print "The rain node... does it match?" 
+print str(rain_node)
 
 """
 print diner_order_probability.given('order', False)

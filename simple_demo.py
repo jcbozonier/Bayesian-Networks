@@ -11,19 +11,21 @@ class JointProbabilityTable:
 			row[-1] = row[-1]/probability_sum
 		return data
 	def given(self, event_name, event_happened_value):
-		contextual_columns = [entry for entry in self._columns if entry != event_name]
+		contextual_columns = [entry for entry in self._columns]
 		contextual_data = []
 		event_column_index = self._columns.index(event_name)
 		probability_sum = 0
 		for row in self._data:
 			if row[event_column_index] == event_happened_value:
-				new_row = [entry for i, entry in enumerate(row) if i != event_column_index]
+				new_row = [entry for i, entry in enumerate(row)]
 				probability_sum += new_row[-1]
 				contextual_data.append(new_row)
-
+			else:
+				new_row = [entry for i, entry in enumerate(row)]
+				new_row[-1] = 0
+				contextual_data.append(new_row)
 		for row in contextual_data:
 			row[-1] = row[-1]/probability_sum
-
 		return JointProbabilityTable(contextual_columns, contextual_data)
 
 	def _add_to_current_beliefs(self, current_beliefs, event_value, probability):
@@ -99,7 +101,6 @@ class BayesianNode:
 		for affected_node in self._affected_by:
 			affected_node._backward_propagate(self._joint_probability_table)
 	def given(self, value):
-		self._propagation_started = True
 		self._joint_probability_table = self._joint_probability_table.given(self._name, value)
 		jpt = self._joint_probability_table.clone()
 		for affected_node in self._affects_nodes:
@@ -108,41 +109,77 @@ class BayesianNode:
 			affected_node._backward_propagate(jpt)
 	def probability(self, event_value):
 		return self._joint_probability_table.probability(self._name)[event_value]
+	def __str__(self):
+		return str(self._joint_probability_table)
 
-diner_order_probability = JointProbabilityTable(
-	columns=['order', 'diner loyalty'],
+cloudy_table = JointProbabilityTable(
+	columns=['cloudy'],
 	data = [
-		[True,  'return',  .87],
-		[True,  'new',     .13],
-		[False, 'return',  .1],
-		[False, 'new',     .9],
-
-	])
-
-channel_order_probability = JointProbabilityTable(
-	columns=['channel', 'diner loyalty'],
-	data = [
-		['seo',      'return',  .2],
-		['seo',      'new',     .8],
-		['direct',   'return',  .9],
-		['direct',   'new',     .1],
-		['facebook', 'return',  .35],
-		['facebook', 'new',     .65],
-	])
-
-diner_loyalty_probability = JointProbabilityTable(
-	columns=['diner loyalty'],
-	data = [
-		['return', .485],
-	 	['new', .515]
+		[True,  .5],
+	 	[False, .5]
 	 ])
 
+sprinkler_table = JointProbabilityTable(
+	columns=['sprinkler', 'cloudy'],
+	data = [
+		[True,  True,  .1],
+		[True,  False, .5],
+		[False, True,  .9],
+		[False, False, .5],
+
+	])
+
+rain_table = JointProbabilityTable(
+	columns=['rain', 'cloudy'],
+	data = [
+		[True,     True,      .8],
+		[True,     False,     .2],
+		[False,    True,      .2],
+		[False,    False,     .8]
+	])
+
+wet_grass_table = JointProbabilityTable(
+	columns=['sprinkler', 'rain', 'wet grass'],
+	data = [
+		[True, True,     True,      .99],
+		[True, True,     False,     .01],
+		[True, False,    True,      .90],
+		[True, False,    False,     .10],
+		[False, True,     True,     .9],
+		[False, True,     False,    .1],
+		[False, False,    True,      0],
+		[False, False,    False,     1]
+	])
+
+print "Test given for wet grass event: " + str(wet_grass_table.given('wet grass', True))
+
+wet_grass_node = BayesianNode('wet grass', wet_grass_table)
+cloudy_node = BayesianNode('cloudy', cloudy_table)
+rain_node = BayesianNode('rain', rain_table)
+sprinkler_node = BayesianNode('sprinkler', sprinkler_table)
+
+cloudy_node.affects(sprinkler_node)
+cloudy_node.affects(rain_node)
+sprinkler_node.affects(wet_grass_node)
+rain_node.affects(wet_grass_node)
+
+wet_grass_node.given(True)
+print 'Sprinkler node: ' + str(sprinkler_node)
+print 'P(S = True | W = True) = ' + str(sprinkler_node.probability(True))
+print 'P(S = False | W = True) = ' + str(sprinkler_node.probability(False))
+print 'P(R = True | W = True) = ' + str(rain_node.probability(True))
+print 'P(C = True | W = True) = ' + str(cloudy_node.probability(True))
+
+
+
+"""
 print diner_order_probability.given('order', False)
 adjusted_table = diner_order_probability.update_belief('diner loyalty', {'return': .3, 'new': .7})
 print adjusted_table.update_belief('diner loyalty', {'return': .5, 'new': .5})
 
 print "~~~~~~~~~~~ test smallest table"
 print diner_loyalty_probability.update_belief('diner loyalty', {'return': .7, 'new': .3})
+
 
 
 print "~~~~ Example Scenario ~~~~~~"
@@ -179,4 +216,4 @@ print 'It should be 0.5483870967741936'
 #print new_beliefs
 #conversion_by_loyalty_given_channel = diner_order_probability.update_belief('diner loyalty', new_beliefs)
 #print conversion_by_loyalty_given_channel
-#print conversion_by_loyalty_given_channel.probability('order')
+#print conversion_by_loyalty_given_channel.probability('order')"""

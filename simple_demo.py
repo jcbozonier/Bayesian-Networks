@@ -46,7 +46,10 @@ class JointProbabilityTable:
 		for event_value in new_beliefs:
 			updated_probability = new_beliefs[event_value]
 			current_probability = current_beliefs[event_value]
-			probability_shift = updated_probability / current_probability
+			if current_probability != 0:
+				probability_shift = updated_probability / current_probability
+			else:
+				probability_shift = 0
 			belief_shifts[event_value] = probability_shift
 		new_table = self._clone_data()
 		for row in new_table:
@@ -79,6 +82,7 @@ class BayesianNode:
 		self._joint_probability_table = joint_probability_table
 		self._affects_nodes = []
 		self._affected_by = []
+		self._known = False
 	def affected_by(self, other_node):
 		self._affected_by.append(other_node)
 	def affects(self, node):
@@ -95,60 +99,87 @@ class BayesianNode:
 		for affected_node in self._affected_by:
 			affected_node._backward_propagate(self._joint_probability_table)
 	def given(self, value):
-		self._joint_probability_table = self._joint_probability_table.given(self._name, value)
-		jpt = self._joint_probability_table.clone()
-		for affected_node in self._affects_nodes:
-			affected_node._forward_propagate(jpt)
-		for affected_node in self._affected_by:
-			affected_node._backward_propagate(jpt)
+		if not self._known:
+			self._joint_probability_table = self._joint_probability_table.given(self._name, value)
+			self._known = True
+			jpt = self._joint_probability_table.clone()
+			for affected_node in self._affects_nodes:
+				affected_node._forward_propagate(jpt)
+			for affected_node in self._affected_by:
+				affected_node._backward_propagate(jpt)
+			for affected_node in self._affects_nodes:
+				affected_node._backward_propagate(jpt)
+			for affected_node in self._affected_by:
+				affected_node._forward_propagate(jpt)
 	def probability(self, event_value):
 		return self._joint_probability_table.probability(self._name)[event_value]
 	def __str__(self):
 		return str(self._joint_probability_table)
 
-cloudy_table = JointProbabilityTable(
-	columns=['cloudy'],
+door_picked_table = JointProbabilityTable(
+	columns=['door_picked'],
 	data = [
-		[True,  .3],
-	 	[False, .7]
-	 ])
-
-rain_table = JointProbabilityTable(
-	columns=['cloudy', 'rain'],
-	data = [
-		[True,  True,  .6],
-		[True,  False, .4],
-		[False, True,  .04],
-		[False, False, .96],
+		['red',   0.3333],
+		['blue',  0.3333],
+		['green', 0.3334],
 
 	])
 
-wet_grass_table = JointProbabilityTable(
-	columns=['rain', 'wet_grass'],
+prize_behind_door_table = JointProbabilityTable(
+	columns=['prize_behind'],
 	data = [
-		[True,  True,  .99],
-		[True,  False, .01],
-		[False, True,  .05],
-		[False, False, .95],
-
+		['red',   0.3333],
+		['blue',  0.3333],
+		['green', 0.3334],
 	])
 
-wet_grass_node = BayesianNode('wet_grass', wet_grass_table)
-rain_node = BayesianNode('rain', rain_table)
-cloudy_node = BayesianNode('cloudy', cloudy_table)
+shown_empty_table = JointProbabilityTable(
+	columns=['door_picked', 'prize_behind', 'shown_empty'],
+	data = [
+		['red', 'red',  'red',       0.0],
+		['red', 'red',  'green',     0.5],
+		['red', 'red',  'blue',      0.5],
+		['red', 'green',  'red',     0.0],
+		['red', 'green',  'green',   0.0],
+		['red', 'green',  'blue',    1.0],
+		['red', 'blue',  'red',      0.0],
+		['red', 'blue',  'green',    1.0],
+		['red', 'blue',  'blue',     0.0],
 
-cloudy_node.affects(rain_node)
-rain_node.affects(wet_grass_node)
+		['green', 'red',  'red',     0.0],
+		['green', 'red',  'green',   0.0],
+		['green', 'red',  'blue',    1.0],
+		['green', 'green',  'red',   0.5],
+		['green', 'green',  'green', 0.0],
+		['green', 'green',  'blue',  0.5],
+		['green', 'blue',  'red',    1.0],
+		['green', 'blue',  'green',  0.0],
+		['green', 'blue',  'blue',   0.0],
 
-wet_grass_node.given(False)
+		['blue', 'red',  'red',      0.0],
+		['blue', 'red',  'green',    1.0],
+		['blue', 'red',  'blue',     0.0],
+		['blue', 'green',  'red',    1.0],
+		['blue', 'green',  'green',  0.0],
+		['blue', 'green',  'blue',   0.0],
+		['blue', 'blue',  'red',     0.5],
+		['blue', 'blue',  'green',   0.5],
+		['blue', 'blue',  'blue',    0.0],
+	])
 
-print 'Rain node: ' + str(cloudy_node)
-print 'Rain node: ' + str(rain_node)
-print 'P(C = True | W = False) = ' + str(cloudy_node.probability(True))
-print "...."
-print 'P(R = True | W = False) = ' + str(rain_node.probability(True))
-print "The wet grass node... does it match?" 
-print str(wet_grass_node)
+door_picked_node = BayesianNode('door_picked', door_picked_table)
+prize_behind_node = BayesianNode('prize_behind_door', prize_behind_door_table)
+shown_empty_node = BayesianNode('shown_empty', shown_empty_table)
+
+door_picked_node.affects(shown_empty_node)
+prize_behind_node.affects(shown_empty_node)
+
+door_picked_node.given('red')
+shown_empty_node.given('green')
+
+print str(prize_behind_node)
+print str(door_picked_node)
+print str(shown_empty_table)
 
 """
 print "Testing sprinkler belief updates..."

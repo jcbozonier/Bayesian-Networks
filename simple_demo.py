@@ -33,22 +33,26 @@ class JointProbabilityTable:
 			else:
 				row[-1] = 0
 		return JointProbabilityTable(contextual_columns, contextual_data)
-	def _add_to_current_beliefs(self, current_beliefs, event_value, probability):
-		if not event_value in current_beliefs:
-			current_beliefs[event_value] = 0
-		current_beliefs[event_value] += probability
 	def _get_matching_probability(self, new_beliefs, event_value):
 		for new_belief in new_beliefs:
 			if new_belief[0] == event_value:
 				return new_belief[1]
 	def _clone_data(self):
 		return [list(row) for row in self._data]
-	def update_belief(self, event_name, new_beliefs):
+	def _add_to_current_beliefs(self, current_beliefs, event_value, probability):
+		if not event_value in current_beliefs:
+			current_beliefs[event_value] = 0
+		current_beliefs[event_value] += probability
+	def _get_current_beliefs_for_event(self, event_name):
 		current_beliefs = {}
-		belief_shifts = {}
 		event_column_index = self._columns.index(event_name)
 		for row in self._data:
-			self._add_to_current_beliefs(current_beliefs, row[event_column_index], row[self._probability_index])
+			row_event_name = row[event_column_index]
+			row_event_probability = row[self._probability_index]
+			self._add_to_current_beliefs(current_beliefs, row_event_name, row_event_probability)
+		return current_beliefs
+	def _get_belief_shifts(self, current_beliefs, new_beliefs):
+		belief_shifts = {}
 		for event_value in new_beliefs:
 			updated_probability = new_beliefs[event_value]
 			current_probability = current_beliefs[event_value]
@@ -57,6 +61,11 @@ class JointProbabilityTable:
 			else:
 				probability_shift = 0
 			belief_shifts[event_value] = probability_shift
+		return belief_shifts
+	def update_belief(self, event_name, new_beliefs):
+		current_beliefs = self._get_current_beliefs_for_event(event_name)
+		belief_shifts = self._get_belief_shifts(current_beliefs, new_beliefs)
+		event_column_index = self._columns.index(event_name)
 		new_table = self._clone_data()
 		for row in new_table:
 			row[-1] = row[-1] * belief_shifts[row[event_column_index]]
@@ -274,12 +283,20 @@ win_prize_table = JointProbabilityTable(
 		['blue', 'blue',  False, 0.0],
 	])
 
+informed_agent_table = JointProbabilityTable(
+	columns=['informed_agent'],
+	data=[
+		['informed',   0.2],
+		['uninformed', 0.8],
+	])
+
 door_picked_node = BayesianNode('door_picked', door_picked_table)
 prize_behind_node = BayesianNode('prize_behind', prize_behind_door_table)
 shown_empty_node = BayesianNode('shown_empty', shown_empty_table)
 win_prize_node = BayesianNode('win_prize', win_prize_table)
 door_after_choice_node = BayesianNode('door_after_choice', door_after_choice_table)
 switch_node = BayesianNode('switch_or_stay', switch_table)
+informed_agent_node = BayesianNode('informed_agent', informed_agent_table)
 
 print "Win prize original: " + str(win_prize_table.probability('win_prize'))
 
@@ -291,6 +308,11 @@ prize_behind_node.affects(shown_empty_node)
 shown_empty_node.affects(door_after_choice_node)
 door_picked_node.affects(door_after_choice_node)
 door_after_choice_node.affects(win_prize_node)
+
+# For fun (need to update joint probability tables as well)
+# informed_agent_node.affects(switch_node)
+# informed_agent_node.affects(win_prize_node)
+
 
 prize_behind_node.affects(win_prize_node)
 switch_node.affects(door_after_choice_node)
